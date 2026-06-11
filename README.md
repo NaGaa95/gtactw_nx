@@ -33,6 +33,7 @@ first run the game:
 * `touchscreen` — `1` enables touch input in handheld mode
 * `hide_touch_hud` — `1` hides the on-screen touch buttons while a controller is being used
   (touching the screen brings them back, like the game's own input mode switching)
+* `show_fps` — `1` draws a small FPS counter in the top left corner
 * `trilinear_filter` / `disable_mipmaps` — texture filtering tweaks
 
 ### How to build

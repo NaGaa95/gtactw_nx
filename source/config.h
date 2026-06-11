@@ -41,6 +41,7 @@ typedef struct {
   int language;
   int touchscreen;
   int hide_touch_hud;
+  int show_fps;
 } Config;
 
 extern Config config;
