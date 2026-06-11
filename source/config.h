@@ -40,6 +40,7 @@ typedef struct {
   int disable_mipmaps;
   int language;
   int touchscreen;
+  int hide_touch_hud;
 } Config;
 
 extern Config config;

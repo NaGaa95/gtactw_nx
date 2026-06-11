@@ -242,19 +242,69 @@ static void resolve_entry_points(void) {
 // continuously and has no comparable loads, so only the boot boost remains.
 
 // ---------------------------------------------------------------------------
+// touch HUD hiding: the engine tracks "controller in use" itself in
+// gOSWGamepad (UpdateGamepad sets byte [1] on pad input, UpdateTouch clears
+// it on a touch press), and ~50 UI subsystems already adapt to it -- but
+// unlike Max Payne it never hides the cIPhonePad touch buttons. We do that
+// here by forcing their sprite alphas to 0 through the game's own
+// cIPhonePad::SetAlpha while the flag is set. Re-applied every frame
+// because the HUD app fades the alphas back in during its transitions.
+// ---------------------------------------------------------------------------
+
+static void (* IPhonePad_SetAlpha)(void *pad, float alpha);
+static void *iphone_pad;                 // &gIPhonePad
+static uint8_t *osw_gamepad_active;      // &gOSWGamepad[0]; byte [1] = active
+static int touch_hud_hidden = 0;
+
+static void update_touch_hud(void) {
+  if (!IPhonePad_SetAlpha)
+    return;
+  if (osw_gamepad_active[1]) {
+    IPhonePad_SetAlpha(iphone_pad, 0.0f);
+    touch_hud_hidden = 1;
+  } else if (touch_hud_hidden) {
+    // back in touch mode: restore once and let the game's own fades take
+    // over again from there
+    IPhonePad_SetAlpha(iphone_pad, 1.0f);
+    touch_hud_hidden = 0;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // touchscreen (handheld mode): finger states from the panel are translated
 // into the start/move/end events android's view layer used to deliver.
 // libnx reports coordinates in the panel's native 1280x720 space.
 // ---------------------------------------------------------------------------
 
-#define MAX_TOUCHES 10
+// the engine's pointer array (`pointers` in libGame.so) only has FOUR slots
+// and indexes them by the id we pass without bounds checks: an id above 3
+// corrupts the neighboring globals (LIB_InputEvent writes a 0x78-stride
+// entry) and eventually crashes in the event queue's grow path. libnx
+// finger ids are not guaranteed to stay below 4 either, so active fingers
+// get mapped onto stable engine slots 0..3 and any extra finger is ignored.
+#define MAX_TOUCHES 4
 
 typedef struct {
   int active;
+  u32 finger_id;
   float x, y;
 } TouchSlot;
 
 static TouchSlot touch_prev[MAX_TOUCHES];
+
+static int touch_slot_find(u32 finger_id) {
+  for (int i = 0; i < MAX_TOUCHES; i++)
+    if (touch_prev[i].active && touch_prev[i].finger_id == finger_id)
+      return i;
+  return -1;
+}
+
+static int touch_slot_alloc(void) {
+  for (int i = 0; i < MAX_TOUCHES; i++)
+    if (!touch_prev[i].active)
+      return i;
+  return -1;
+}
 
 static void update_touch(void) {
   if (!config.touchscreen)
@@ -270,26 +320,30 @@ static void update_touch(void) {
   int seen[MAX_TOUCHES] = { 0 };
   for (int i = 0; i < state.count; i++) {
     const HidTouchState *t = &state.touches[i];
-    const int id = (int)(t->finger_id % MAX_TOUCHES);
     const float x = (float)t->x * sx;
     const float y = (float)t->y * sy;
-    seen[id] = 1;
-    if (!touch_prev[id].active) {
-      debugPrintf("touch start %d (%.0f, %.0f)\n", id, x, y);
-      implOnTouchStart(fake_env, NULL, id, x, y);
-    } else if (x != touch_prev[id].x || y != touch_prev[id].y) {
-      implOnTouchMove(fake_env, NULL, id, x, y);
+    int slot = touch_slot_find(t->finger_id);
+    if (slot < 0) {
+      slot = touch_slot_alloc();
+      if (slot < 0)
+        continue; // more fingers than engine slots: ignore the extras
+      touch_prev[slot].active = 1;
+      touch_prev[slot].finger_id = t->finger_id;
+      debugPrintf("touch start %d (%.0f, %.0f)\n", slot, x, y);
+      implOnTouchStart(fake_env, NULL, slot, x, y);
+    } else if (x != touch_prev[slot].x || y != touch_prev[slot].y) {
+      implOnTouchMove(fake_env, NULL, slot, x, y);
     }
-    touch_prev[id].active = 1;
-    touch_prev[id].x = x;
-    touch_prev[id].y = y;
+    touch_prev[slot].x = x;
+    touch_prev[slot].y = y;
+    seen[slot] = 1;
   }
 
-  for (int id = 0; id < MAX_TOUCHES; id++) {
-    if (touch_prev[id].active && !seen[id]) {
-      debugPrintf("touch end %d\n", id);
-      implOnTouchEnd(fake_env, NULL, id, touch_prev[id].x, touch_prev[id].y);
-      touch_prev[id].active = 0;
+  for (int slot = 0; slot < MAX_TOUCHES; slot++) {
+    if (touch_prev[slot].active && !seen[slot]) {
+      debugPrintf("touch end %d\n", slot);
+      implOnTouchEnd(fake_env, NULL, slot, touch_prev[slot].x, touch_prev[slot].y);
+      touch_prev[slot].active = 0;
     }
   }
 }
@@ -444,6 +498,14 @@ int main(void) {
   int (* JNI_OnLoad)(void *vm, void *reserved) = (void *)so_find_addr_rx(&game_mod, "JNI_OnLoad");
   void (* NVThreadInit)(void *vm) = (void *)so_find_addr_rx(&game_mod, "_Z12NVThreadInitP7_JavaVM");
 
+  if (config.hide_touch_hud) {
+    IPhonePad_SetAlpha = (void *)so_try_find_addr_rx(&game_mod, "_ZN10cIPhonePad8SetAlphaEf");
+    iphone_pad = (void *)so_try_find_addr_rx(&game_mod, "gIPhonePad");
+    osw_gamepad_active = (uint8_t *)so_try_find_addr_rx(&game_mod, "gOSWGamepad");
+    if (!iphone_pad || !osw_gamepad_active)
+      IPhonePad_SetAlpha = NULL; // feature off if anything is missing
+  }
+
   so_finalize(&donor_mod);
   so_finalize(&game_mod);
   so_flush_caches(&donor_mod);
@@ -513,6 +575,7 @@ int main(void) {
 
     update_gamepad();
     update_touch();
+    update_touch_hud();
 
     const u64 now = armGetSystemTick();
     float dt = (float)(now - last_tick) / (float)tick_freq;

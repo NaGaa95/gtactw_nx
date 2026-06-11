@@ -19,7 +19,8 @@
   CONFIG_VAR_INT(trilinear_filter); \
   CONFIG_VAR_INT(disable_mipmaps); \
   CONFIG_VAR_INT(language); \
-  CONFIG_VAR_INT(touchscreen);
+  CONFIG_VAR_INT(touchscreen); \
+  CONFIG_VAR_INT(hide_touch_hud);
 
 Config config;
 
@@ -47,6 +48,7 @@ int read_config(const char *file) {
   config.disable_mipmaps = 0;
   config.language = 0; // english
   config.touchscreen = 1; // handheld touch input
+  config.hide_touch_hud = 1; // hide the touch buttons while using a controller
 
   FILE *f = fopen(file, "r");
   if (f == NULL)

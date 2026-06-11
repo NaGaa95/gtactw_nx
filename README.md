@@ -31,6 +31,8 @@ first run the game:
 * `screen_width` / `screen_height` — render resolution; `-1` picks 1280x720 in handheld and 1920x1080 docked
 * `language` — `0` English; other values select the other localizations (FR/DE/IT/ES/JA)
 * `touchscreen` — `1` enables touch input in handheld mode
+* `hide_touch_hud` — `1` hides the on-screen touch buttons while a controller is being used
+  (touching the screen brings them back, like the game's own input mode switching)
 * `trilinear_filter` / `disable_mipmaps` — texture filtering tweaks
 
 ### How to build
