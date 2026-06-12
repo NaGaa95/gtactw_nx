@@ -39,6 +39,7 @@ include $(DEVKITPRO)/libnx/switch_rules
 #---------------------------------------------------------------------------------
 TARGET		:=	$(notdir $(CURDIR))
 APP_TITLE	:=	GTA Chinatown Wars
+APP_AUTHOR	:=	naga
 APP_VERSION	:=	1.0.0
 BUILD		:=	build
 SOURCES		:=	source source/hooks
