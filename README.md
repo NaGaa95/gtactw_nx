@@ -62,6 +62,12 @@ make
 * TheOfficialFloW for the original gtactw_vita port;
 * fgsfds for max_nx, which this port is based on;
 
+### Support
+
+If you enjoy my work and want to support me :
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/D1D1P2MOG)
+
 ### Legal
 
 This project has no direct affiliation with Take-Two Interactive Software, Inc. or Rockstar Games, Inc.
