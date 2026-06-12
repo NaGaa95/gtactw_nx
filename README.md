@@ -1,4 +1,9 @@
-## GTA: Chinatown Wars Nintendo Switch port
+<div align=center>
+
+<img src="extras/banner.png" alt="Banner" width="50%">
+
+</div>
+<h1 align=center>GTA: Chinatown Wars - Nintendo Switch port</h1>
 
 This is a wrapper/port of the Android version of Grand Theft Auto: Chinatown Wars (v4.4.243).
 It loads the original game binary, patches it and runs it.
