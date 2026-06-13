@@ -74,7 +74,6 @@ static void check_data(void) {
     CXX_DONOR_SO_NAME,
     "game.pak",
     "dxt.bin",
-    "AVConfig.json",
     "buttonconfig",
     // one representative file per asset class
     "e_ckna01.gxt",

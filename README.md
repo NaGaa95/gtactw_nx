@@ -21,7 +21,7 @@ It can be opened or extracted with anything that can extract `.zip` files.
 
 To install:
 1. Create a folder called `gtactw` in the `switch` folder on your SD card.
-2. Extract **the contents of** the `assets` folder from your `.apk` to `/switch/gtactw/` (this includes `game.pak`, `dxt.bin`, `AVConfig.json`, the `.gxt` text files, the `.mp3` music and the `.mp4` movies). You can skip the `flutter_assets`, `dexopt` and `rockstar` folders.
+2. Extract **the contents of** the `assets` folder from your `.apk` to `/switch/gtactw/` (this includes `game.pak`, `dxt.bin`, the `.gxt` text files, the `.mp3` music and the `.mp4` movies). You can skip the `flutter_assets`, `dexopt` and `rockstar` folders.
 3. Extract `lib/arm64-v8a/libGame.so` **and** `lib/arm64-v8a/libopenal.so` from your `.apk` to `/switch/gtactw/`.
 4. Copy `gtactw_nx.nro` into `/switch/gtactw/`.
 
