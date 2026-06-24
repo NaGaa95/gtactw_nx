@@ -142,12 +142,12 @@ typedef struct {
   int button;
 } PadMap;
 
-// positional mapping (Switch B = bottom = Android BUTTON_A/native confirm)
+// direct buttons mapping (Switch A -> Android A, Switch B -> Android B, etc.)
 static const PadMap pad_map[] = {
-  { HidNpadButton_B, GPAD_BUTTON_A },
-  { HidNpadButton_A, GPAD_BUTTON_B },
-  { HidNpadButton_Y, GPAD_BUTTON_X },
-  { HidNpadButton_X, GPAD_BUTTON_Y },
+  { HidNpadButton_A, GPAD_BUTTON_A },
+  { HidNpadButton_B, GPAD_BUTTON_B },
+  { HidNpadButton_X, GPAD_BUTTON_X },
+  { HidNpadButton_Y, GPAD_BUTTON_Y },
   { HidNpadButton_L, GPAD_BUTTON_L1 },
   { HidNpadButton_R, GPAD_BUTTON_R1 },
   { HidNpadButton_StickL, GPAD_BUTTON_THUMBL },
