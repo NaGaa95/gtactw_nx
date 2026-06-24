@@ -130,6 +130,7 @@ static void set_screen_size(int w, int h) {
 #define GPAD_BUTTON_X 2
 #define GPAD_BUTTON_Y 3
 #define GPAD_BUTTON_START 4
+#define GPAD_BUTTON_SELECT 5
 #define GPAD_BUTTON_L1 6
 #define GPAD_BUTTON_R1 7
 #define GPAD_BUTTON_THUMBL 12
@@ -153,9 +154,7 @@ static const PadMap pad_map[] = {
   { HidNpadButton_StickL, GPAD_BUTTON_THUMBL },
   { HidNpadButton_StickR, GPAD_BUTTON_THUMBR },
   { HidNpadButton_Plus, GPAD_BUTTON_START },
-  // if pause/back ends up dead, route Minus through implOnBackButtonPressed
-  // instead (the Java side has both paths)
-  { HidNpadButton_Minus, GPAD_BUTTON_BACK },
+  { HidNpadButton_Minus, GPAD_BUTTON_SELECT },
 };
 
 // JNI entry points of libGame.so; Java-side signatures from classes2.dex
