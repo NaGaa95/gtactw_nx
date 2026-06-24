@@ -137,10 +137,10 @@ static void set_screen_size(int w, int h) {
 #define GPAD_BUTTON_THUMBR 13
 #define GPAD_BUTTON_BACK 14
 #define GPAD_BUTTON_MENU 15
-#define GPAD_BUTTON_DPAD_UP    19
-#define GPAD_BUTTON_DPAD_DOWN  20
-#define GPAD_BUTTON_DPAD_LEFT  21
-#define GPAD_BUTTON_DPAD_RIGHT 22
+#define GPAD_BUTTON_DPAD_UP 8
+#define GPAD_BUTTON_DPAD_DOWN 9
+#define GPAD_BUTTON_DPAD_LEFT 10
+#define GPAD_BUTTON_DPAD_RIGHT 11
 
 typedef struct {
   u64 hid;
