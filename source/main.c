@@ -137,6 +137,10 @@ static void set_screen_size(int w, int h) {
 #define GPAD_BUTTON_THUMBR 13
 #define GPAD_BUTTON_BACK 14
 #define GPAD_BUTTON_MENU 15
+#define GPAD_BUTTON_DPAD_UP 8
+#define GPAD_BUTTON_DPAD_DOWN 9
+#define GPAD_BUTTON_DPAD_LEFT 10
+#define GPAD_BUTTON_DPAD_RIGHT 11
 
 typedef struct {
   u64 hid;
@@ -155,6 +159,10 @@ static const PadMap pad_map[] = {
   { HidNpadButton_StickR, GPAD_BUTTON_THUMBR },
   { HidNpadButton_Plus, GPAD_BUTTON_START },
   { HidNpadButton_Minus, GPAD_BUTTON_SELECT },
+  { HidNpadButton_Up, GPAD_BUTTON_DPAD_UP },
+  { HidNpadButton_Down, GPAD_BUTTON_DPAD_DOWN },
+  { HidNpadButton_Left, GPAD_BUTTON_DPAD_LEFT },
+  { HidNpadButton_Right, GPAD_BUTTON_DPAD_RIGHT },
 };
 
 // JNI entry points of libGame.so; Java-side signatures from classes2.dex
@@ -374,10 +382,6 @@ static void update_gamepad(void) {
   const HidAnalogStickState rs = padGetStickPos(&pad, 1);
   float lx = (float)ls.x * scale;
   float ly = (float)ls.y * -scale;
-  if (down & HidNpadButton_Left)  lx = -1.0f;
-  if (down & HidNpadButton_Right) lx =  1.0f;
-  if (down & HidNpadButton_Up)    ly = -1.0f;
-  if (down & HidNpadButton_Down)  ly =  1.0f;
 
   // Android Y axes point down.
   const float axes[6] = {
