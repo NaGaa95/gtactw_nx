@@ -121,50 +121,104 @@ static struct {
 static struct {
   once_flag once;
   mtx_t lock;
-  char text[SUB_MAX_TEXT];
+  uint16_t text[SUB_MAX_TEXT];
+  int text_len;
 } sub = { .once = ONCE_FLAG_INIT };
 
 static void sub_init_lock(void) {
   mtx_init(&sub.lock, mtx_plain);
 }
 
-// the atlas only has ASCII 32..126: decode UTF-8 and map the common
-// typographic punctuation, everything else becomes '?'
-static void sub_sanitize(const char *in, char *out, int out_size) {
+static unsigned int sub_decode_cp1252(unsigned int c) {
+  static const uint16_t cp1252[32] = {
+    0x20AC, 0,      0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021,
+    0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0,      0x017D, 0,
+    0,      0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
+    0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0,      0x017E, 0x0178,
+  };
+  if (c >= 0x80 && c <= 0x9F && cp1252[c - 0x80])
+    return cp1252[c - 0x80];
+  return c;
+}
+
+static unsigned int sub_next_codepoint(const unsigned char **inout) {
+  const unsigned char *p = *inout;
+  unsigned int cp = *p;
+  if (cp < 0x80) {
+    *inout = p + 1;
+    return cp;
+  }
+  if ((cp & 0xE0) == 0xC0 && (p[1] & 0xC0) == 0x80) {
+    *inout = p + 2;
+    return ((cp & 0x1F) << 6) | (p[1] & 0x3F);
+  }
+  if ((cp & 0xF0) == 0xE0 && (p[1] & 0xC0) == 0x80 && (p[2] & 0xC0) == 0x80) {
+    *inout = p + 3;
+    return ((cp & 0x0F) << 12) | ((p[1] & 0x3F) << 6) | (p[2] & 0x3F);
+  }
+  if ((cp & 0xF8) == 0xF0 && (p[1] & 0xC0) == 0x80 &&
+      (p[2] & 0xC0) == 0x80 && (p[3] & 0xC0) == 0x80) {
+    *inout = p + 4;
+    return ((cp & 0x07) << 18) | ((p[1] & 0x3F) << 12) |
+           ((p[2] & 0x3F) << 6) | (p[3] & 0x3F);
+  }
+  *inout = p + 1;
+  return sub_decode_cp1252(cp);
+}
+
+static int sub_font_glyph_index(unsigned int cp) {
+  int lo = 0;
+  int hi = FONT_COUNT - 1;
+  while (lo <= hi) {
+    const int mid = (lo + hi) / 2;
+    const unsigned int glyph_cp = font_codepoints[mid];
+    if (cp == glyph_cp)
+      return mid;
+    if (cp < glyph_cp)
+      hi = mid - 1;
+    else
+      lo = mid + 1;
+  }
+  return -1;
+}
+
+static unsigned int sub_sanitize_codepoint(unsigned int cp) {
+  switch (cp) {
+    case 0x2018: case 0x2019: return '\'';
+    case 0x201C: case 0x201D: return '"';
+    case 0x2013: case 0x2014: return '-';
+    case 0x00A0: return ' ';
+    case '\n': case '\r': case '\t': return ' ';
+    default: return cp;
+  }
+}
+
+// Decode UTF-8 subtitles into one codepoint per glyph. If a localization ever
+// arrives as legacy Latin-1/Windows-1252 bytes, invalid UTF-8 bytes are kept as
+// those codepoints instead of being discarded.
+static int sub_sanitize(const char *in, uint16_t *out, int out_cap) {
   const unsigned char *p = (const unsigned char *)in;
   int o = 0;
-  while (*p && o < out_size - 4) {
-    unsigned int cp = *p;
-    if (cp < 0x80) {
-      p += 1;
-    } else if ((cp & 0xE0) == 0xC0 && (p[1] & 0xC0) == 0x80) {
-      cp = ((cp & 0x1F) << 6) | (p[1] & 0x3F);
-      p += 2;
-    } else if ((cp & 0xF0) == 0xE0 && (p[1] & 0xC0) == 0x80 && (p[2] & 0xC0) == 0x80) {
-      cp = ((cp & 0x0F) << 12) | ((p[1] & 0x3F) << 6) | (p[2] & 0x3F);
-      p += 3;
-    } else {
+  while (*p && o < out_cap) {
+    unsigned int cp = sub_sanitize_codepoint(sub_next_codepoint(&p));
+    if (cp == 0x2026) {
+      for (int i = 0; i < 3 && o < out_cap; i++)
+        out[o++] = '.';
+      continue;
+    }
+    if (cp >= 0x0300 && cp <= 0x036F)
+      continue;
+    if (cp > 0xFFFF || sub_font_glyph_index(cp) < 0)
       cp = '?';
-      p += 1;
-    }
-    switch (cp) {
-      case 0x2018: case 0x2019: cp = '\''; break;
-      case 0x201C: case 0x201D: cp = '"'; break;
-      case 0x2013: case 0x2014: cp = '-'; break;
-      case 0x00A0: cp = ' '; break;
-      case 0x2026: out[o++] = '.'; out[o++] = '.'; cp = '.'; break;
-      case '\n': case '\r': case '\t': cp = ' '; break;
-      default: break;
-    }
-    out[o++] = (cp >= 32 && cp < 127) ? (char)cp : '?';
+    out[o++] = (uint16_t)cp;
   }
-  out[o] = 0;
+  return o;
 }
 
 void movie_set_text(const char *text) {
   call_once(&sub.once, sub_init_lock);
   mtx_lock(&sub.lock);
-  sub_sanitize(text ? text : "", sub.text, sizeof(sub.text));
+  sub.text_len = sub_sanitize(text ? text : "", sub.text, SUB_MAX_TEXT);
   mtx_unlock(&sub.lock);
 }
 
@@ -528,13 +582,15 @@ static void text_atlas_ready(void) {
 
 // two triangles per glyph into verts (x,y,u,v interleaved); spaces advance
 // the pen without emitting geometry
-static int sub_emit_line(const char *text, int start, int len, float x, float y,
+static int sub_emit_line(const uint16_t *text, int start, int len, float x, float y,
                          float gw, float gh, GLfloat *verts, int quads) {
   for (int j = 0; j < len; j++) {
-    const char c = text[start + j];
-    if (c == ' ')
+    const uint16_t cp = text[start + j];
+    if (cp == ' ')
       continue;
-    const int idx = c - FONT_FIRST;
+    const int idx = sub_font_glyph_index(cp);
+    if (idx < 0)
+      continue;
     const float u0 = (float)((idx % FONT_COLS) * FONT_CELL_W) / (float)FONT_ATLAS_W;
     const float v0 = (float)((idx / FONT_COLS) * FONT_CELL_H) / (float)FONT_ATLAS_H;
     const float u1 = u0 + (float)FONT_CELL_W / (float)FONT_ATLAS_W;
@@ -559,11 +615,13 @@ static void movie_render_text(void) {
     return;
 
   call_once(&sub.once, sub_init_lock);
-  char text[SUB_MAX_TEXT];
+  uint16_t text[SUB_MAX_TEXT];
+  int text_len;
   mtx_lock(&sub.lock);
   memcpy(text, sub.text, sizeof(text));
+  text_len = sub.text_len;
   mtx_unlock(&sub.lock);
-  if (!text[0])
+  if (!text_len)
     return;
 
   // glyph size scales with the screen; the aspect comes from the atlas cell
@@ -574,7 +632,7 @@ static void movie_render_text(void) {
   int max_cols = (int)((float)screen_width * 0.92f / gw);
   if (max_cols < 8)
     max_cols = 8;
-  const int tlen = (int)strlen(text);
+  const int tlen = text_len;
   int line_start[SUB_MAX_LINES], line_len[SUB_MAX_LINES], nlines = 0;
   int pos = 0;
   while (pos < tlen && nlines < SUB_MAX_LINES) {
@@ -679,7 +737,9 @@ static void fps_render(void) {
   const float gh = (float)screen_height / 30.0f;
   const float gw = gh * (float)FONT_CELL_W / (float)FONT_CELL_H;
   static GLfloat verts[8 * 24];
-  const int quads = sub_emit_line(fps.text, 0, (int)strlen(fps.text),
+  uint16_t text[sizeof(fps.text)];
+  const int len = sub_sanitize(fps.text, text, sizeof(text) / sizeof(text[0]));
+  const int quads = sub_emit_line(text, 0, len,
                                   10.0f, 8.0f, gw, gh, verts, 0);
   if (!quads)
     return;
