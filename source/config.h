@@ -9,8 +9,9 @@
 #ifndef __CONFIG_H__
 #define __CONFIG_H__
 
-// should be enough for pretend purposes
-#define MEMORY_MB 512
+// MB for the .so load region (~15MB of mapped libraries); the newlib heap gets
+// the rest and backs the game's malloc + mesa's GPU bos.
+#define MEMORY_SO_MB 256
 
 // CTW 4.4.243 ships the game as libGame.so. The APK has no libc++_shared.so:
 // on Android the C++ runtime resolves from the APK's own libopenal.so, which
@@ -42,6 +43,7 @@ typedef struct {
   int touchscreen;
   int hide_touch_hud;
   int show_fps;
+  int xbox_layout;   // 0 = Nintendo face buttons (default), 1 = legacy Xbox
 } Config;
 
 extern Config config;

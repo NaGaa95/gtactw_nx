@@ -40,6 +40,7 @@ first run the game:
   (touching the screen brings them back, like the game's own input mode switching)
 * `show_fps` — `1` draws a small FPS counter in the top left corner
 * `trilinear_filter` / `disable_mipmaps` — texture filtering tweaks
+* `xbox_layout` — `1` restores the original Xbox/positional face buttons; default `0` uses the Nintendo A/B/X/Y labels
 
 ### How to build
 

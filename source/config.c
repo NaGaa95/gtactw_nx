@@ -21,7 +21,8 @@
   CONFIG_VAR_INT(language); \
   CONFIG_VAR_INT(touchscreen); \
   CONFIG_VAR_INT(hide_touch_hud); \
-  CONFIG_VAR_INT(show_fps);
+  CONFIG_VAR_INT(show_fps); \
+  CONFIG_VAR_INT(xbox_layout);
 
 Config config;
 
@@ -51,6 +52,7 @@ int read_config(const char *file) {
   config.touchscreen = 1; // handheld touch input
   config.hide_touch_hud = 1; // hide the touch buttons while using a controller
   config.show_fps = 0; // small FPS counter in the top left corner
+  config.xbox_layout = 0; // Nintendo face buttons; 1 = legacy Xbox
 
   FILE *f = fopen(file, "r");
   if (f == NULL)

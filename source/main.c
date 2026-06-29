@@ -33,6 +33,9 @@ static size_t heap_so_limit = 0;
 so_module donor_mod; // libopenal.so, C++ runtime donor (see config.h)
 so_module game_mod;  // libGame.so
 
+// memory-split sizes (MB) for the debug print in main()
+static size_t g_mem_total_mb = 0, g_mem_newlib_mb = 0, g_mem_so_mb = 0;
+
 // provide replacement heap init function to separate newlib heap from the .so
 void __libnx_initheap(void) {
   void *addr;
@@ -54,16 +57,24 @@ void __libnx_initheap(void) {
       diagAbortWithResult(MAKERESULT(Module_Libnx, LibnxError_HeapAllocFailed));
   }
 
-  // only allocate a fixed amount for the newlib heap
+  // give newlib the bulk of RAM (backs malloc + mesa's GPU bos); the .so region
+  // only holds the ~15MB of mapped libraries
   extern char *fake_heap_start;
   extern char *fake_heap_end;
-  fake_heap_size  = umin(size, MEMORY_MB * 1024 * 1024);
+  size_t so_region = (size_t)MEMORY_SO_MB * 1024 * 1024;
+  if (so_region > size / 4)            // never grab more than 25% from newlib
+    so_region = size / 4;
+  fake_heap_size  = size - so_region;
   fake_heap_start = (char *)addr;
   fake_heap_end   = (char *)addr + fake_heap_size;
 
   heap_so_base = (char *)addr + fake_heap_size;
   heap_so_base = (void *)ALIGN_MEM((uintptr_t)heap_so_base, 0x1000); // align to page size
   heap_so_limit = (char *)addr + size - (char *)heap_so_base;
+
+  g_mem_total_mb  = size >> 20;
+  g_mem_newlib_mb = fake_heap_size >> 20;
+  g_mem_so_mb     = so_region >> 20;
 }
 
 static void check_data(void) {
@@ -147,12 +158,24 @@ typedef struct {
   int button;
 } PadMap;
 
-// direct buttons mapping (Switch A -> Android A, Switch B -> Android B, etc.)
-static const PadMap pad_map[] = {
+// face buttons, selected by config.xbox_layout:
+//   0 Nintendo: match by label (Switch A -> Android A); prompts match the Switch
+//   1 Xbox: match by position (Switch B -> Android A) -- the pre-PR mapping
+static const PadMap pad_face_nintendo[] = {
   { HidNpadButton_A, GPAD_BUTTON_A },
   { HidNpadButton_B, GPAD_BUTTON_B },
   { HidNpadButton_X, GPAD_BUTTON_X },
   { HidNpadButton_Y, GPAD_BUTTON_Y },
+};
+static const PadMap pad_face_xbox[] = {
+  { HidNpadButton_B, GPAD_BUTTON_A },
+  { HidNpadButton_A, GPAD_BUTTON_B },
+  { HidNpadButton_Y, GPAD_BUTTON_X },
+  { HidNpadButton_X, GPAD_BUTTON_Y },
+};
+
+// shared across both layouts
+static const PadMap pad_map[] = {
   { HidNpadButton_L, GPAD_BUTTON_L1 },
   { HidNpadButton_R, GPAD_BUTTON_R1 },
   { HidNpadButton_StickL, GPAD_BUTTON_THUMBL },
@@ -357,24 +380,30 @@ static void update_touch(void) {
 static PadState pad;
 static u64 pad_prev = 0;
 
+// drive one button table into the engine on the press/release edges
+static void send_pad_buttons(const PadMap *map, unsigned n, u64 down, u64 changed) {
+  for (unsigned i = 0; i < n; i++) {
+    if (!(changed & map[i].hid))
+      continue;
+    if (down & map[i].hid) {
+      debugPrintf("gamepad button down %d\n", map[i].button);
+      implOnGamepadButtonDown(fake_env, NULL, 0, map[i].button);
+      movie_skip(); // the game ignores input while waiting for a movie
+    } else {
+      debugPrintf("gamepad button up %d\n", map[i].button);
+      implOnGamepadButtonUp(fake_env, NULL, 0, map[i].button);
+    }
+  }
+}
+
 static void update_gamepad(void) {
   padUpdate(&pad);
   const u64 down = padGetButtons(&pad);
   const u64 changed = down ^ pad_prev;
 
-  for (unsigned int i = 0; i < sizeof(pad_map) / sizeof(*pad_map); i++) {
-    if (changed & pad_map[i].hid) {
-      if (down & pad_map[i].hid) {
-        debugPrintf("gamepad button down %d\n", pad_map[i].button);
-        implOnGamepadButtonDown(fake_env, NULL, 0, pad_map[i].button);
-        // the game ignores input while waiting for a movie
-        movie_skip();
-      } else {
-        debugPrintf("gamepad button up %d\n", pad_map[i].button);
-        implOnGamepadButtonUp(fake_env, NULL, 0, pad_map[i].button);
-      }
-    }
-  }
+  // face buttons follow the layout config; everything else is shared
+  send_pad_buttons(config.xbox_layout ? pad_face_xbox : pad_face_nintendo, 4, down, changed);
+  send_pad_buttons(pad_map, sizeof(pad_map) / sizeof(*pad_map), down, changed);
   pad_prev = down;
 
   const float scale = 1.f / 32767.0f;
@@ -457,9 +486,9 @@ int main(void) {
   // once the menu has rendered a few frames (see the main loop)
   cpu_boost(1);
 
-  // try to read the config file and create one with default values if it's missing
-  if (read_config(CONFIG_NAME) < 0)
-    write_config(CONFIG_NAME);
+  // write back after reading so newly-added keys (xbox_layout) appear in config.txt
+  read_config(CONFIG_NAME);
+  write_config(CONFIG_NAME);
 
   check_syscalls();
   check_data();
@@ -467,7 +496,8 @@ int main(void) {
   // calculate actual screen size
   set_screen_size(config.screen_width, config.screen_height);
 
-  debugPrintf("heap size = %u KB\n", MEMORY_MB * 1024);
+  debugPrintf("mem: total=%zu MB | newlib(game+mesa+GPU)=%zu MB | .so region=%zu MB\n",
+              g_mem_total_mb, g_mem_newlib_mb, g_mem_so_mb);
   debugPrintf(" lib base = %p\n", heap_so_base);
   debugPrintf("  lib max = %u KB\n", heap_so_limit / 1024);
 
