@@ -38,7 +38,6 @@ first run the game:
 * `touchscreen` — `1` enables touch input in handheld mode
 * `hide_touch_hud` — `1` hides the on-screen touch buttons while a controller is being used
   (touching the screen brings them back, like the game's own input mode switching)
-* `show_fps` — `1` draws a small FPS counter in the top left corner
 * `trilinear_filter` / `disable_mipmaps` — texture filtering tweaks
 * `xbox_layout` — `1` restores the original Xbox/positional face buttons; default `0` uses the Nintendo A/B/X/Y labels
 
@@ -79,3 +78,8 @@ We do not condone piracy in any way, shape or form and encourage users to legall
 
 Unless specified otherwise, the source code provided in this repository is licenced under the MIT License.
 Please see the accompanying LICENSE file.
+
+### SaltyNX telemetry
+
+FPS and render resolution are published to SaltyNX shared memory for compatible overlays. The port continues normally when SaltyNX is not running. This reports presentation timing and resolution; it does not change the game's frame cap.
+The old wrapper FPS overlay and its `show_fps` setting have been removed. Existing config entries are ignored; use a SaltyNX-compatible overlay to view FPS.

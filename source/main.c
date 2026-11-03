@@ -12,6 +12,7 @@
  * from the APK's classes2.dex (see PORT_NOTES.md).
  */
 
+#include "saltynx.h"
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -482,6 +483,8 @@ static void dispatch_playlist_events(void) {
 }
 
 int main(void) {
+  saltynx_start();
+  atexit(saltynx_stop);
   // run the CPU at full clock for the entire boot; dropped back to normal
   // once the menu has rendered a few frames (see the main loop)
   cpu_boost(1);

@@ -705,99 +705,8 @@ static void movie_render_text(void) {
   glBlendFuncSeparate(bsrc_rgb, bdst_rgb, bsrc_a, bdst_a);
 }
 
-// ---------------------------------------------------------------------------
-// FPS counter (config.show_fps): counts presented frames and draws the rate
-// in the top left corner, refreshed twice a second. Unlike the subtitles
-// this runs outside movie_render's guarded section, so it saves/restores
-// all the GL state it touches itself.
-// ---------------------------------------------------------------------------
 
-static struct {
-  u64 window_start;
-  u32 frames;
-  char text[8];
-} fps;
 
-static void fps_render(void) {
-  const u64 now = armGetSystemTick();
-  const u64 freq = armGetSystemTickFreq();
-  fps.frames++;
-  if (!fps.window_start)
-    fps.window_start = now;
-  if (now - fps.window_start >= freq / 2) {
-    const float rate = (float)fps.frames * (float)freq / (float)(now - fps.window_start);
-    snprintf(fps.text, sizeof(fps.text), "%.0f", rate);
-    fps.frames = 0;
-    fps.window_start = now;
-  }
-
-  if (!fps.text[0] || !gl_init() || !gl.text_prog)
-    return;
-
-  const float gh = (float)screen_height / 30.0f;
-  const float gw = gh * (float)FONT_CELL_W / (float)FONT_CELL_H;
-  static GLfloat verts[8 * 24];
-  uint16_t text[sizeof(fps.text)];
-  const int len = sub_sanitize(fps.text, text, sizeof(text) / sizeof(text[0]));
-  const int quads = sub_emit_line(text, 0, len,
-                                  10.0f, 8.0f, gw, gh, verts, 0);
-  if (!quads)
-    return;
-
-  GLint prev_prog, prev_active, prev_tex0, prev_array_buf, prev_viewport[4];
-  GLint bsrc_rgb, bdst_rgb, bsrc_a, bdst_a;
-  const GLboolean prev_blend = glIsEnabled(GL_BLEND);
-  const GLboolean prev_depth = glIsEnabled(GL_DEPTH_TEST);
-  const GLboolean prev_scissor = glIsEnabled(GL_SCISSOR_TEST);
-  const GLboolean prev_cull = glIsEnabled(GL_CULL_FACE);
-  glGetIntegerv(GL_CURRENT_PROGRAM, &prev_prog);
-  glGetIntegerv(GL_ACTIVE_TEXTURE, &prev_active);
-  glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &prev_array_buf);
-  glGetIntegerv(GL_VIEWPORT, prev_viewport);
-  glGetIntegerv(GL_BLEND_SRC_RGB, &bsrc_rgb);
-  glGetIntegerv(GL_BLEND_DST_RGB, &bdst_rgb);
-  glGetIntegerv(GL_BLEND_SRC_ALPHA, &bsrc_a);
-  glGetIntegerv(GL_BLEND_DST_ALPHA, &bdst_a);
-  glActiveTexture(GL_TEXTURE0);
-  glGetIntegerv(GL_TEXTURE_BINDING_2D, &prev_tex0);
-
-  text_atlas_ready();
-  glDisable(GL_DEPTH_TEST);
-  glDisable(GL_SCISSOR_TEST);
-  glDisable(GL_CULL_FACE);
-  glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glViewport(0, 0, screen_width, screen_height);
-  glUseProgram(gl.text_prog);
-  glBindTexture(GL_TEXTURE_2D, gl.text_tex);
-  glUniform1i(gl.text_loc_tex, 0);
-  glEnableVertexAttribArray(gl.text_loc_pos);
-  glEnableVertexAttribArray(gl.text_loc_uv);
-  glVertexAttribPointer(gl.text_loc_pos, 2, GL_FLOAT, GL_FALSE, 16, verts);
-  glVertexAttribPointer(gl.text_loc_uv, 2, GL_FLOAT, GL_FALSE, 16, verts + 2);
-
-  glUniform2f(gl.text_loc_off, 3.0f / (float)screen_width, -3.0f / (float)screen_height);
-  glUniform4f(gl.text_loc_color, 0.0f, 0.0f, 0.0f, 0.9f);
-  glDrawArrays(GL_TRIANGLES, 0, quads * 6);
-  glUniform2f(gl.text_loc_off, 0.0f, 0.0f);
-  glUniform4f(gl.text_loc_color, 1.0f, 1.0f, 1.0f, 1.0f);
-  glDrawArrays(GL_TRIANGLES, 0, quads * 6);
-
-  glDisableVertexAttribArray(gl.text_loc_pos);
-  glDisableVertexAttribArray(gl.text_loc_uv);
-
-  glBlendFuncSeparate(bsrc_rgb, bdst_rgb, bsrc_a, bdst_a);
-  if (!prev_blend) glDisable(GL_BLEND);
-  if (prev_depth) glEnable(GL_DEPTH_TEST);
-  if (prev_scissor) glEnable(GL_SCISSOR_TEST);
-  if (prev_cull) glEnable(GL_CULL_FACE);
-  glBindTexture(GL_TEXTURE_2D, prev_tex0);
-  glActiveTexture(prev_active);
-  glUseProgram(prev_prog);
-  glBindBuffer(GL_ARRAY_BUFFER, prev_array_buf);
-  glViewport(prev_viewport[0], prev_viewport[1], prev_viewport[2], prev_viewport[3]);
-}
 
 static void movie_render(void) {
   const int gl_ok = gl_init();
@@ -910,8 +819,7 @@ static volatile unsigned int game_swaps = 0;
 unsigned int eglSwapBuffersHook(void *display, void *surface) {
   if (mp.active)
     movie_render();
-  if (config.show_fps)
-    fps_render();
+
   game_swaps++;
   return eglSwapBuffers((EGLDisplay)display, (EGLSurface)surface);
 }
@@ -941,8 +849,7 @@ void movie_main_loop_tick(void) {
     return;
   }
   movie_render();
-  if (config.show_fps)
-    fps_render();
+
   eglSwapBuffers(d, s);
 }
 

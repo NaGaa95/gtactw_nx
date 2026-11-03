@@ -65,6 +65,9 @@ LDFLAGS	=	-specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) -Wl,-Map,$(notdir $*
 # mpg123 is needed since 2.1.131 (music streaming used to be in libVendor_mpg123.so)
 # install it with: pacman -S switch-mpg123
 # ffmpeg decodes the intro/credits movies: pacman -S switch-ffmpeg
+# Publish all EGL presentation paths, including guest import tables.
+LDFLAGS += -Wl,--wrap=eglSwapBuffers,--wrap=eglGetProcAddress,--wrap=__libnx_exit
+
 LIBS	:= -lopenal -lSDL2 -lmpg123 \
 			-lavformat -lavcodec -lswresample -lavutil -ldav1d -lz -lbz2 \
 			-lEGL -lGLESv2 -lglapi -ldrm_nouveau -lnx -lm

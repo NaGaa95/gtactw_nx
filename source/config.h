@@ -42,7 +42,6 @@ typedef struct {
   int language;
   int touchscreen;
   int hide_touch_hud;
-  int show_fps;
   int xbox_layout;   // 0 = Nintendo face buttons (default), 1 = legacy Xbox
 } Config;
 
